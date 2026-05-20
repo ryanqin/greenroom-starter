@@ -26,6 +26,7 @@ import {
   relativeShowDate,
 } from "@/lib/format";
 import type { Bonus } from "@/db/schema";
+import { ExtractCanonical } from "./extract-canonical";
 
 const COMP_LABELS: Record<string, string> = {
   artist_gl: "Artist guest list",
@@ -246,6 +247,7 @@ export default async function ShowDetailPage({
                       <div className="text-[13px] text-ink-800 bg-canvas-soft rounded-lg p-4 ring-1 ring-ink-200/50 leading-relaxed font-[450]" style={{ fontStyle: "italic" }}>
                         {deal.dealNotesFreetext}
                       </div>
+                      <ExtractCanonical prose={deal.dealNotesFreetext} />
                     </div>
                   )}
                 </>
