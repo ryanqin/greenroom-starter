@@ -76,10 +76,16 @@ If the prose contains a parenthetical/bracketed note saying a value was "dispute
 2. Even if surface text says "against gross" or has an explicit value, the DISPUTE/DRIFT NOTE TAKES PRIORITY.
 3. Add a metaNote describing the dispute/drift.
 
-EXAMPLE: "Marketing recoup of $900 against gross. (Note: deal email was ambiguous, disputed by WME.)"
+EXAMPLE: "Marketing recoup of $900 against gross. (Note: deal email was ambiguous, disputed by WME, resolved with $720 concession.)"
+  → recoup.amount = 900 (THE ORIGINAL RECOUP AMOUNT — not the concession)
   → recoup.basis = "ambiguous" (NOT "gross" — the dispute note overrides)
   → recoup.confidence = "needs_eyes"
-  → metaNote describing the WME dispute
+  → metaNote describing the WME dispute AND the $720 concession resolution
+
+RECOUP AMOUNT — DO NOT CONFUSE WITH SETTLEMENT AMOUNT
+- The recoup.amount field is the ORIGINAL recoup value stated in the prose (e.g., "Marketing recoup of $900" → 900).
+- If the prose ALSO mentions a settlement, concession, or resolved amount (e.g., "resolved with $720"), that goes in metaNotes only — NEVER in recoup.amount.
+- The recoup is what the venue tried to claim; the settlement is what was actually paid. The schema captures the recoup, not the settlement.
 
 EXAMPLE: "+$400 if gross > $11,000. [Updated 4 days before show: threshold dropped to $6,000. Structured field still reflects original.]"
   → bonus.threshold = 6000 (the updated value)
