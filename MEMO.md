@@ -2,13 +2,15 @@
 
 > Slice 1 design memo · The Crescent / Greenroom case study · 2026-05-21
 
+> **Note on slice naming.** The brief labels this slice "deal modeling." On the evidence, modeling — making the calculator handle the deal types it's missing — is the downstream symptom; the root cause is that the deal itself never has a single source of truth. I widened the slice from "calculator handles all deal types" to **"make the deal a first-class object,"** and modeling becomes one of four downstream gaps the upstream fix closes.
+
 ## The slice
 
 Sarah Kim: *"The deal was a ghost. Mariana had her notes, I had my email, Andrea had her recollection of the negotiation, and none of them perfectly agreed."* The deeper root cause is that Greenroom itself amplifies the fragmentation. Without it, Mariana's settlement lives in two places (email + Excel). With it, five+ (half-filled deal fields, an unreliable status, a calculator that fails on 62% of her deals, an empty audit trail) — information is more scattered, not less.
 
 **Slice 1 deep: make the deal a first-class object.** Four components, end-to-end: the LLM extracts deal terms from prose; structured `issues[]` surface prose-internal problems (ambiguity, drift, deferral, missing context); a cross-source reconcile pass compares the extracted canonical against the structured DB fields and emits drift issues; the settlement calculator now handles vs / percentage_of_net / door deals, removing the amber empty state. History (component 4) is deferred to phase 2.
 
-**Why this cut over the others.** 62% of The Crescent's deals don't fit the in-app calculator. 21 paid settlements still carry disputed recoups. Coastal Spell alone had three WME marketing-recoup disputes in one year. The calculation gap, the agent disputes, the status drift, the 2am surprises — all downstream echoes of one root cause. One upstream cut has more leverage than six downstream patches.
+**Why this cut over the others.** 62% of The Crescent's deals don't fit the in-app calculator. 21 paid settlements still carry disputed recoups. Coastal Spell alone had three WME marketing-recoup disputes in one year. The calculator gap, the agent disputes, the status drift, the 2am surprises — all downstream echoes of one root cause. **One upstream cut has more leverage than six downstream patches.**
 
 ## Design choices
 
