@@ -26,6 +26,7 @@ import {
   relativeShowDate,
 } from "@/lib/format";
 import type { Bonus } from "@/db/schema";
+import type { ExtractedDeal } from "@/tools/extraction-eval/schema";
 import { ExtractCanonical } from "./extract-canonical";
 
 const COMP_LABELS: Record<string, string> = {
@@ -101,6 +102,12 @@ export default async function ShowDetailPage({
                 <PlainBadge variant="brand">
                   {bonuses.length} bonus{bonuses.length === 1 ? "" : "es"}
                 </PlainBadge>
+              )}
+              {deal && (
+                <CanonicalBadge
+                  canonicalJson={deal.canonicalJson}
+                  hasProse={!!deal.dealNotesFreetext}
+                />
               )}
             </div>
             <h1
@@ -247,7 +254,20 @@ export default async function ShowDetailPage({
                       <div className="text-[13px] text-ink-800 bg-canvas-soft rounded-lg p-4 ring-1 ring-ink-200/50 leading-relaxed font-[450]" style={{ fontStyle: "italic" }}>
                         {deal.dealNotesFreetext}
                       </div>
-                      <ExtractCanonical prose={deal.dealNotesFreetext} />
+                      <ExtractCanonical
+                        dealId={deal.id}
+                        prose={deal.dealNotesFreetext}
+                        existingCanonical={
+                          deal.canonicalJson
+                            ? (JSON.parse(deal.canonicalJson) as ExtractedDeal)
+                            : null
+                        }
+                        existingExtractedAt={
+                          deal.canonicalExtractedAt
+                            ? deal.canonicalExtractedAt.toISOString()
+                            : null
+                        }
+                      />
                     </div>
                   )}
                 </>
@@ -490,5 +510,28 @@ function BonusBadge({ type }: { type: Bonus["type"] }) {
     <span className="inline-flex shrink-0 items-center px-1.5 py-px rounded text-[9px] font-mono uppercase tracking-wider bg-white ring-1 ring-brand-200/50 text-brand-800">
       {labels[type]}
     </span>
+  );
+}
+
+function CanonicalBadge({
+  canonicalJson,
+  hasProse,
+}: {
+  canonicalJson: string | null;
+  hasProse: boolean;
+}) {
+  if (!hasProse) return null;
+  if (!canonicalJson) {
+    return <PlainBadge variant="default">Not yet extracted</PlainBadge>;
+  }
+  const canonical = JSON.parse(canonicalJson) as ExtractedDeal;
+  const n = canonical.issues.length;
+  if (n === 0) {
+    return <PlainBadge variant="brand">✓ Canonical extracted</PlainBadge>;
+  }
+  return (
+    <PlainBadge variant="amber">
+      ⚠ {n} issue{n === 1 ? "" : "s"} to review
+    </PlainBadge>
   );
 }

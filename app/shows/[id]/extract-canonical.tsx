@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Sparkles, Loader2, AlertTriangle, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ExtractedDeal } from "@/tools/extraction-eval/schema";
@@ -14,27 +15,47 @@ const BONUS_LABEL: Record<string, string> = {
   walkout_pot: "walkout",
 };
 
-export function ExtractCanonical({ prose }: { prose: string }) {
+interface ExtractCanonicalProps {
+  dealId: string;
+  prose: string;
+  existingCanonical: ExtractedDeal | null;
+  existingExtractedAt: string | null;
+}
+
+export function ExtractCanonical({
+  dealId,
+  prose,
+  existingCanonical,
+  existingExtractedAt,
+}: ExtractCanonicalProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ExtractedDeal | null>(null);
+  const [result, setResult] = useState<ExtractedDeal | null>(existingCanonical);
+  const [extractedAt, setExtractedAt] = useState<string | null>(
+    existingExtractedAt,
+  );
 
   async function handleExtract() {
     setLoading(true);
     setError(null);
-    setResult(null);
     try {
       const res = await fetch("/api/extract-deal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prose }),
+        body: JSON.stringify({ dealId, prose }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
-      const data = (await res.json()) as ExtractedDeal;
-      setResult(data);
+      const data = (await res.json()) as {
+        result: ExtractedDeal;
+        extractedAt: string;
+      };
+      setResult(data.result);
+      setExtractedAt(data.extractedAt);
+      router.refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -44,24 +65,37 @@ export function ExtractCanonical({ prose }: { prose: string }) {
 
   return (
     <div className="mt-4">
-      <Button
-        variant="brand"
-        size="sm"
-        onClick={handleExtract}
-        disabled={loading}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Extracting…
-          </>
-        ) : (
-          <>
-            <Sparkles className="h-3.5 w-3.5" />
-            {result ? "Re-extract canonical deal" : "Extract canonical deal"}
-          </>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Button
+          variant="brand"
+          size="sm"
+          onClick={handleExtract}
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Extracting…
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-3.5 w-3.5" />
+              {result ? "Re-extract canonical deal" : "Extract canonical deal"}
+            </>
+          )}
+        </Button>
+        {extractedAt && !loading && (
+          <span className="text-[11px] text-ink-500">
+            Last extracted{" "}
+            {new Date(extractedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
         )}
-      </Button>
+      </div>
 
       {error && (
         <div className="mt-4 rounded-lg bg-rose-50/60 ring-1 ring-rose-200/60 p-4">
@@ -222,8 +256,8 @@ function ExtractedPanel({ result }: { result: ExtractedDeal }) {
       )}
 
       <div className="text-[10.5px] text-ink-400 pt-1 border-t border-brand-200/40">
-        Preview only — not yet persisted. Phase 2 will add side-by-side review +
-        confirm + history.
+        Persisted with the deal. Phase 2 will add side-by-side review + confirm
+        + history.
       </div>
     </div>
   );

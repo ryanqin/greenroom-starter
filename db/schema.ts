@@ -125,6 +125,9 @@ export const deals = sqliteTable("deals", {
   bonusesJson: text("bonuses_json"),
   dealNotesFreetext: text("deal_notes_freetext"),
 
+  canonicalJson: text("canonical_json"),
+  canonicalExtractedAt: integer("canonical_extracted_at", { mode: "timestamp" }),
+
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
