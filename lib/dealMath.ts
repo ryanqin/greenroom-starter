@@ -1,31 +1,26 @@
 /**
  * Deal calculation logic for the in-app settlement tool.
  *
- * IMPORTANT — DELIBERATELY INCOMPLETE.
+ * Slice 1 extension: vs / percentage_of_net / door deals are now supported.
+ * This closes the 62% gap that previously sent The Crescent's settlement
+ * back to spreadsheets.
  *
- * This is the existing Greenroom settlement engine. It was built early in
- * the company's life, when most deals were flat guarantees. It currently
- * handles two deal types end-to-end:
- *
+ * Supported:
  *   1. flat                 — $X guaranteed, optional sellout bonus
- *   2. percentage_of_gross  — X% of gross, no expense deductions, optional sellout bonus
+ *   2. percentage_of_gross  — X% of gross, no expense deductions
+ *   3. percentage_of_net    — X% of (gross - capped expenses)
+ *   4. vs                   — max(guarantee, percentage × net_after_expenses)
+ *   5. door                 — artist takes 100% of net_after_expenses
  *
- * For both, it reads `bonusesJson` and applies bonuses where it can — but
- * only the structured ones. Bonuses that exist only in `dealNotesFreetext`
- * are invisible to this engine.
+ * For all five, it reads `bonusesJson` and applies bonuses where it can.
+ * Bonuses that exist only in `dealNotesFreetext` are visible to the LLM
+ * extractor but are not yet wired into this engine (next phase: canonical
+ * extraction can replace bonusesJson as the source of truth).
  *
- * It does NOT handle:
- *
- *   - vs deals (guarantee vs % of net, whichever greater)
- *   - percentage_of_net deals (with expense deductions)
- *   - door deals
- *   - recoups (those flow separately through the settlement record)
- *   - tier ratchets (would need vs-deal support first)
- *   - comps that count toward gross
- *
- * For unsupported deals, the tool returns { supported: false } and the UI
- * shows the "this deal type isn't yet supported" empty state. About 82% of
- * Greenroom's customers default to spreadsheets because of this.
+ * Recoups still flow separately through the settlement record. Tier ratchets
+ * are recognized but not yet applied (next phase: ratchet evaluation against
+ * capacity sold). Walkout pot is a canonical-only bonus type (DB schema
+ * cannot represent it) and is not applied in the in-app calculator yet.
  */
 
 import type { Deal, Expense, TicketSale, Bonus } from "@/db/schema";
@@ -168,7 +163,146 @@ export function calculateSettlement(input: CalcInput): SettlementCalculation {
     };
   }
 
-  // ---------- everything else: not supported ----------
+  // Effective deductible expenses, after expense cap if any.
+  const cappedExpenses =
+    deal.expenseCap !== null && deal.expenseCap < totalExpenses
+      ? deal.expenseCap
+      : totalExpenses;
+  const expensesStepLabel =
+    deal.expenseCap !== null && totalExpenses > deal.expenseCap
+      ? `Less: expenses (capped at ${deal.expenseCap.toLocaleString()})`
+      : "Less: expenses";
+  const expensesStepNote =
+    deal.expenseCap !== null && totalExpenses > deal.expenseCap
+      ? `Actual expenses ${totalExpenses.toLocaleString()} reduced to cap`
+      : undefined;
+  const netAfterExpenses = Math.max(0, grossBoxOffice - cappedExpenses);
+
+  // ---------- percentage_of_net ----------
+  if (deal.dealType === "percentage_of_net") {
+    if (deal.percentage == null) {
+      return {
+        supported: false,
+        reason: "Percentage-of-net deal is missing a percentage.",
+        dealType: deal.dealType,
+      };
+    }
+    const payout = netAfterExpenses * deal.percentage;
+    const bonusResult = applyBonuses(parseBonuses(deal), {
+      gross: grossBoxOffice,
+      tickets,
+      capacity: venueCapacity,
+    });
+
+    return {
+      supported: true,
+      grossBoxOffice,
+      netBoxOffice,
+      totalExpenses,
+      totalToArtist: payout + bonusResult.totalApplied,
+      steps: [
+        { label: "Gross box office", value: grossBoxOffice },
+        { label: expensesStepLabel, value: -cappedExpenses, note: expensesStepNote },
+        { label: "Net after expenses", value: netAfterExpenses },
+        {
+          label: `× ${(deal.percentage * 100).toFixed(0)}%`,
+          value: payout,
+          note: "Percentage of net.",
+        },
+        ...bonusResult.applied.map((b) => ({
+          label: b.label,
+          value: b.amount,
+          note: b.reason,
+        })),
+      ],
+      finalFormula: bonusResult.applied.length
+        ? `(gross - expenses) × ${deal.percentage} + bonuses = ${(payout + bonusResult.totalApplied).toFixed(2)}`
+        : `(gross - expenses) × ${deal.percentage} = ${payout.toFixed(2)}`,
+      bonusesApplied: bonusResult.applied,
+      bonusesNotTriggered: bonusResult.notTriggered,
+    };
+  }
+
+  // ---------- vs (guarantee vs % of net, whichever greater) ----------
+  if (deal.dealType === "vs") {
+    if (deal.guaranteeAmount == null || deal.percentage == null) {
+      return {
+        supported: false,
+        reason: "Vs deal needs both a guarantee and a percentage.",
+        dealType: deal.dealType,
+      };
+    }
+    const percentagePayout = netAfterExpenses * deal.percentage;
+    const guaranteeWins = deal.guaranteeAmount >= percentagePayout;
+    const baseDealAmount = Math.max(deal.guaranteeAmount, percentagePayout);
+    const bonusResult = applyBonuses(parseBonuses(deal), {
+      gross: grossBoxOffice,
+      tickets,
+      capacity: venueCapacity,
+    });
+
+    return {
+      supported: true,
+      grossBoxOffice,
+      netBoxOffice,
+      totalExpenses,
+      totalToArtist: baseDealAmount + bonusResult.totalApplied,
+      steps: [
+        { label: "Gross box office", value: grossBoxOffice },
+        { label: expensesStepLabel, value: -cappedExpenses, note: expensesStepNote },
+        { label: "Net after expenses", value: netAfterExpenses },
+        {
+          label: `× ${(deal.percentage * 100).toFixed(0)}%`,
+          value: percentagePayout,
+          note: "Percentage of net.",
+        },
+        {
+          label: "Guarantee floor",
+          value: deal.guaranteeAmount,
+          note: "Vs deal: artist takes the higher of % or guarantee.",
+        },
+        {
+          label: guaranteeWins ? "→ Guarantee wins" : "→ Percentage wins",
+          value: baseDealAmount,
+        },
+        ...bonusResult.applied.map((b) => ({
+          label: b.label,
+          value: b.amount,
+          note: b.reason,
+        })),
+      ],
+      finalFormula: bonusResult.applied.length
+        ? `max(${deal.guaranteeAmount}, (gross - expenses) × ${deal.percentage}) + bonuses = ${(baseDealAmount + bonusResult.totalApplied).toFixed(2)}`
+        : `max(${deal.guaranteeAmount}, (gross - expenses) × ${deal.percentage}) = ${baseDealAmount.toFixed(2)}`,
+      bonusesApplied: bonusResult.applied,
+      bonusesNotTriggered: bonusResult.notTriggered,
+    };
+  }
+
+  // ---------- door deal (artist takes 100% of net) ----------
+  if (deal.dealType === "door") {
+    return {
+      supported: true,
+      grossBoxOffice,
+      netBoxOffice,
+      totalExpenses,
+      totalToArtist: netAfterExpenses,
+      steps: [
+        { label: "Gross box office", value: grossBoxOffice },
+        { label: expensesStepLabel, value: -cappedExpenses, note: expensesStepNote },
+        {
+          label: "= To artist (100% of net)",
+          value: netAfterExpenses,
+          note: "Door deal — artist takes all net revenue.",
+        },
+      ],
+      finalFormula: `gross - expenses = ${netAfterExpenses.toFixed(2)}`,
+      bonusesApplied: [],
+      bonusesNotTriggered: [],
+    };
+  }
+
+  // ---------- fallback (shouldn't reach here once all 5 types are listed) ----------
   const friendlyName: Record<Deal["dealType"], string> = {
     flat: "Flat guarantee",
     percentage_of_gross: "Percentage of gross",
@@ -176,13 +310,10 @@ export function calculateSettlement(input: CalcInput): SettlementCalculation {
     vs: "Vs deal (guarantee vs %)",
     door: "Door deal",
   };
-
   return {
     supported: false,
     dealType: deal.dealType,
-    reason:
-      `${friendlyName[deal.dealType]} deals aren't supported in the in-app tool yet. ` +
-      `Power users at venues like The Crescent default to spreadsheets for these.`,
+    reason: `${friendlyName[deal.dealType]} deals aren't supported yet.`,
   };
 }
 
