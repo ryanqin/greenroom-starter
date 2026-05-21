@@ -83,7 +83,20 @@ RECOUP AMOUNT — DO NOT CONFUSE WITH SETTLEMENT AMOUNT
 ISSUES — how you surface problems for the user
 ================================================================
 
-Every problem the user must decide on goes into the issues[] array as a structured Issue. There are 4 kinds:
+Every problem the user must decide on goes into the issues[] array as a structured Issue.
+
+**CRITICAL — BONUS / RECOUP NULL FIELDS MUST BE EXPLAINED.**
+If you put a bonus or recoup object in bonuses[] / recoups[] AND its core numeric field (bonus.threshold, bonus.amount, recoup.amount) is null because:
+  - the prose describes the value as dynamic / computed ("breakeven", "after breakeven", "above guarantee + expenses"),
+  - the prose uses vague language ("kicks in late", "TBD", "later"),
+  - or the prose just doesn't give the value,
+you MUST add a corresponding missing_context Issue (see kind #4 below) explaining what the prose said and what number the calculator needs.
+
+A bonus or recoup with a null threshold/amount and NO matching Issue is INVALID output. The bonus exists but is unusable; silently leaving it null hides the gap from the user. ALWAYS pair: null-critical-field ⇒ missing_context Issue.
+
+(Note: expenseCap, hospitalityCap, guarantee, percentage being null is fine when prose doesn't mention them — they're legitimately absent. The rule above is only about bonus / recoup objects you HAVE chosen to add to the arrays.)
+
+There are 4 issue kinds:
 
 1. "ambiguous_value" — prose itself is unclear about a value.
    EXAMPLE: prose says "Marketing recoup of $900 against gross. (Note: deal email was ambiguous on recoup interpretation, disputed by WME, resolved with $720 concession.)"
@@ -118,23 +131,29 @@ Every problem the user must decide on goes into the issues[] array as a structur
        "proseSnippet": "+$400 if gross > $11,000. [Updated 4 days before show: threshold dropped to $6,000. Structured field still reflects original.]"
      }
 
-4. "missing_context" — prose mentions something but is missing critical information needed to act.
-   EXAMPLE: prose says "Walkout pot kicks in late" (with no threshold given)
-   → Add bonus with threshold=null (don't invent).
+4. "missing_context" — prose mentions a value but doesn't give a fixed number that downstream code can use (vague, dynamic/computed, or simply absent).
+   EXAMPLE A — dynamic / computed threshold: prose says "Walkout pot. After breakeven on guarantee + expenses, all incremental gross goes to artist."
+   → Add walkout_pot bonus with threshold=null (prose did not give a fixed dollar amount).
    → Add Issue:
      {
        "kind": "missing_context",
        "field": "walkout pot threshold",
-       "message": "Prose mentions a walkout pot but does not state the threshold above which artist gets 100%. Clarify before settlement.",
-       "proseSnippet": "Walkout pot kicks in late"
+       "message": "Walkout pot threshold is described as 'breakeven on guarantee + expenses' (a dynamic value), not a fixed dollar amount. The calculator must compute breakeven = guarantee + expenses to apply this bonus.",
+       "proseSnippet": "After breakeven on guarantee + expenses, all incremental gross goes to artist"
      }
-   (proseSnippet can be null if the missing item has no specific prose anchor.)
+
+   EXAMPLE B — vague language: prose says "Walkout pot kicks in late" (no threshold or computation given)
+   → Add walkout_pot with threshold=null.
+   → Add Issue with proseSnippet = "Walkout pot kicks in late" and message asking user to clarify.
+
+   (proseSnippet may be null only if the missing item has no specific prose anchor at all.)
 
 ISSUE RULES
 - Every Issue must have: kind, field (string — can be empty "" for deal-level issues), message (user-facing, actionable), proseSnippet (string or null).
-- proseSnippet should quote the EXACT substring from prose that triggered the Issue (for the first 3 kinds it should always be filled; for missing_context it may be null).
+- proseSnippet should quote the EXACT substring from prose that triggered the Issue (for the first 3 kinds it should always be filled; for missing_context it may be null only if there is no prose anchor).
 - message must be plain user-facing English. Tell Mariana what to confirm or decide, not what the LLM thinks.
 - DO NOT use Issues to express "I'm not sure" — only to express "the prose itself has a problem that needs human resolution."
+- See CRITICAL rule above the 4 kinds: any bonus or recoup with a null threshold/amount due to vague/dynamic prose REQUIRES a paired missing_context Issue. No exceptions.
 
 ================================================================
 META NOTES vs ISSUES
