@@ -256,7 +256,6 @@ export default async function ShowDetailPage({
                       </div>
                       <ExtractCanonical
                         dealId={deal.id}
-                        prose={deal.dealNotesFreetext}
                         existingCanonical={
                           deal.canonicalJson
                             ? (JSON.parse(deal.canonicalJson) as ExtractedDeal)

@@ -17,14 +17,12 @@ const BONUS_LABEL: Record<string, string> = {
 
 interface ExtractCanonicalProps {
   dealId: string;
-  prose: string;
   existingCanonical: ExtractedDeal | null;
   existingExtractedAt: string | null;
 }
 
 export function ExtractCanonical({
   dealId,
-  prose,
   existingCanonical,
   existingExtractedAt,
 }: ExtractCanonicalProps) {
@@ -43,7 +41,7 @@ export function ExtractCanonical({
       const res = await fetch("/api/extract-deal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dealId, prose }),
+        body: JSON.stringify({ dealId }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
