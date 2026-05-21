@@ -134,9 +134,12 @@ function sanityCheck(
     sample.prose.toLowerCase().includes("per the email") ||
     sample.prose.toLowerCase().includes("per the deal memo")
   ) {
-    // Should have an ambiguity entry
-    if (e.ambiguities.length === 0) {
-      warnings.push("prose defers to email but no ambiguity flagged");
+    // Should have a deferred_to_external issue
+    const hasDeferredIssue = e.issues.some(
+      (i) => i.kind === "deferred_to_external",
+    );
+    if (!hasDeferredIssue) {
+      warnings.push("prose defers to email but no deferred_to_external issue flagged");
     }
   }
 
@@ -228,26 +231,31 @@ async function main() {
     if (e.bonuses.length > 0) {
       for (const b of e.bonuses) {
         console.log(
-          `  Bonus:      ${b.type}  threshold=${fmt(b.threshold)}  amount=${fmt(b.amount)}  conf=${b.confidence}  "${truncate(b.label, 60)}"`,
+          `  Bonus:      ${b.type}  threshold=${fmt(b.threshold)}  amount=${fmt(b.amount)}  "${truncate(b.label, 60)}"`,
         );
       }
     }
     if (e.recoups.length > 0) {
       for (const rc of e.recoups) {
         console.log(
-          `  Recoup:     ${rc.category}  $${rc.amount}  basis=${rc.basis}  conf=${rc.confidence}  "${truncate(rc.label, 60)}"`,
+          `  Recoup:     ${rc.category}  $${rc.amount}  basis=${rc.basis}  "${truncate(rc.label, 60)}"`,
         );
       }
     }
-    if (e.ambiguities.length > 0) {
-      console.log(`  Ambiguities (${e.ambiguities.length}):`);
-      for (const a of e.ambiguities) console.log(`    - ${truncate(a, 140)}`);
+    if (e.issues.length > 0) {
+      console.log(`  Issues (${e.issues.length}):`);
+      for (const i of e.issues) {
+        console.log(`    [${i.kind}] field=${i.field || "(deal-level)"}`);
+        console.log(`      ${truncate(i.message, 160)}`);
+        if (i.proseSnippet) {
+          console.log(`      ↳ "${truncate(i.proseSnippet, 100)}"`);
+        }
+      }
     }
     if (e.metaNotes.length > 0) {
       console.log(`  MetaNotes (${e.metaNotes.length}):`);
       for (const m of e.metaNotes) console.log(`    - ${truncate(m, 140)}`);
     }
-    console.log(`  Confidence: ${e.extractionConfidence}`);
     if (r.flags.length > 0) {
       console.log(`  ✗ FLAGS:    ${r.flags.join("; ")}`);
     }

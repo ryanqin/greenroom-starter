@@ -4,8 +4,6 @@
  * and our TypeScript layer (compile-time safety).
  */
 
-export type Confidence = "clear" | "needs_eyes" | "unresolved";
-
 export type DealType =
   | "flat"
   | "percentage_of_gross"
@@ -27,7 +25,6 @@ export interface Bonus {
   threshold: number | null;
   amount: number | null;
   tiers: { from: number; to: number | null; percentage: number }[] | null;
-  confidence: Confidence;
 }
 
 export interface Recoup {
@@ -35,7 +32,19 @@ export interface Recoup {
   label: string;
   amount: number;
   basis: "gross" | "expense_cap" | "ambiguous";
-  confidence: Confidence;
+}
+
+export type IssueKind =
+  | "ambiguous_value"
+  | "deferred_to_external"
+  | "version_drift"
+  | "missing_context";
+
+export interface Issue {
+  kind: IssueKind;
+  field: string;
+  message: string;
+  proseSnippet: string | null;
 }
 
 export interface ExtractedDeal {
@@ -47,10 +56,8 @@ export interface ExtractedDeal {
   hospitalityCap: number | null;
   bonuses: Bonus[];
   recoups: Recoup[];
-  ambiguities: string[];
+  issues: Issue[];
   metaNotes: string[];
-  extractionConfidence: "high" | "medium" | "low" | "rejected";
-  rejectionReason: string | null;
 }
 
 /** JSON schema for OpenAI structured outputs (strict mode). */
@@ -107,12 +114,8 @@ export const DEAL_JSON_SCHEMA = {
               additionalProperties: false,
             },
           },
-          confidence: {
-            type: "string",
-            enum: ["clear", "needs_eyes", "unresolved"],
-          },
         },
-        required: ["type", "label", "threshold", "amount", "tiers", "confidence"],
+        required: ["type", "label", "threshold", "amount", "tiers"],
         additionalProperties: false,
       },
     },
@@ -125,22 +128,34 @@ export const DEAL_JSON_SCHEMA = {
           label: { type: "string" },
           amount: { type: "number" },
           basis: { type: "string", enum: ["gross", "expense_cap", "ambiguous"] },
-          confidence: {
-            type: "string",
-            enum: ["clear", "needs_eyes", "unresolved"],
-          },
         },
-        required: ["category", "label", "amount", "basis", "confidence"],
+        required: ["category", "label", "amount", "basis"],
         additionalProperties: false,
       },
     },
-    ambiguities: { type: "array", items: { type: "string" } },
-    metaNotes: { type: "array", items: { type: "string" } },
-    extractionConfidence: {
-      type: "string",
-      enum: ["high", "medium", "low", "rejected"],
+    issues: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          kind: {
+            type: "string",
+            enum: [
+              "ambiguous_value",
+              "deferred_to_external",
+              "version_drift",
+              "missing_context",
+            ],
+          },
+          field: { type: "string" },
+          message: { type: "string" },
+          proseSnippet: { type: ["string", "null"] },
+        },
+        required: ["kind", "field", "message", "proseSnippet"],
+        additionalProperties: false,
+      },
     },
-    rejectionReason: { type: ["string", "null"] },
+    metaNotes: { type: "array", items: { type: "string" } },
   },
   required: [
     "dealType",
@@ -151,10 +166,8 @@ export const DEAL_JSON_SCHEMA = {
     "hospitalityCap",
     "bonuses",
     "recoups",
-    "ambiguities",
+    "issues",
     "metaNotes",
-    "extractionConfidence",
-    "rejectionReason",
   ],
   additionalProperties: false,
 } as const;

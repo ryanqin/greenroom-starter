@@ -1,4 +1,9 @@
-import type { ExtractedDeal } from "./schema";
+import type { ExtractedDeal, IssueKind } from "./schema";
+
+export interface ExpectedIssue {
+  kind: IssueKind;
+  keywords: string[]; // message must contain at least one
+}
 
 export interface TestCase {
   id: string;
@@ -6,7 +11,7 @@ export interface TestCase {
   description: string;
   prose: string;
   expected: ExtractedDeal;
-  expectedAmbiguityKeywords?: string[];
+  expectedIssues?: ExpectedIssue[];
   expectedMetaNoteKeywords?: string[];
 }
 
@@ -14,7 +19,7 @@ export const SAMPLES: TestCase[] = [
   {
     id: "S01_FLAT_SIMPLE",
     showId: "show_0000",
-    description: "Simple flat deal, no bonuses",
+    description: "Simple flat deal, no bonuses, no issues",
     prose: "Flat $2,332. No upside.",
     expected: {
       dealType: "flat",
@@ -25,16 +30,14 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: null,
       bonuses: [],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
   },
   {
     id: "S02_PCT_GROSS",
     showId: "show_0523",
-    description: "Simple % of gross, no expenses",
+    description: "Simple % of gross, no expenses, no issues",
     prose: "75% of gross. No expense deductions. Simple split deal.",
     expected: {
       dealType: "percentage_of_gross",
@@ -45,16 +48,14 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: null,
       bonuses: [],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
   },
   {
     id: "S03_PCT_NET",
     showId: "show_0205",
-    description: "Simple % of net with cap",
+    description: "Simple % of net with cap, no issues",
     prose: "90% of net after expenses. Expenses capped $2350. No guarantee.",
     expected: {
       dealType: "percentage_of_net",
@@ -65,10 +66,8 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: null,
       bonuses: [],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
   },
   {
@@ -86,16 +85,14 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: null,
       bonuses: [],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
   },
   {
     id: "S05_VS_BASIC",
     showId: "show_0431",
-    description: "Standard vs deal, full structure",
+    description: "Standard vs deal, full structure, no issues",
     prose:
       "$4,760 guarantee vs 85% of net after expenses, whichever greater. Expenses capped $2400. Hospitality cap $500.",
     expected: {
@@ -107,17 +104,15 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: 500,
       bonuses: [],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
   },
   {
     id: "S06_VS_WALKOUT_AND_VERSION_DRIFT",
     showId: "show_0007",
     description:
-      "Vs with walkout pot + gross threshold bonus + version drift annotation (LLM should flag drift in metaNotes)",
+      "Vs with walkout pot + gross threshold bonus + version drift annotation (LLM should extract updated value AND surface version_drift issue)",
     prose:
       "$2,631 vs 90% net + walkout pot. After breakeven on guarantee + expenses, all incremental gross goes to artist. Hospitality cap $400. +$400 if gross > $11,000; Walkout pot: 100% of gross above $3,200. [Updated 4 days before show via phone call with agent: bonus threshold dropped to $6,000. Note: structured field still reflects original $11,000 — confirm before settlement.]",
     expected: {
@@ -134,7 +129,6 @@ export const SAMPLES: TestCase[] = [
           threshold: 6000,
           amount: 400,
           tiers: null,
-          confidence: "needs_eyes",
         },
         {
           type: "walkout_pot",
@@ -142,23 +136,29 @@ export const SAMPLES: TestCase[] = [
           threshold: 3200,
           amount: null,
           tiers: null,
-          confidence: "clear",
         },
       ],
       recoups: [],
-      ambiguities: [],
-      metaNotes: [
-        "Bonus threshold updated from $11,000 to $6,000 via phone call 4 days before show; structured DB field may still reflect original $11,000",
+      issues: [
+        {
+          kind: "version_drift",
+          field: "bonus threshold",
+          message:
+            "Bonus threshold was updated from $11,000 to $6,000 four days before show via phone call. Prose warns the structured DB field may still show the original $11,000 — confirm before settlement.",
+          proseSnippet:
+            "[Updated 4 days before show via phone call with agent: bonus threshold dropped to $6,000. Note: structured field still reflects original $11,000 — confirm before settlement.]",
+        },
       ],
-      extractionConfidence: "high",
-      rejectionReason: null,
+      metaNotes: [],
     },
-    expectedMetaNoteKeywords: ["6,000", "11,000", "phone"],
+    expectedIssues: [
+      { kind: "version_drift", keywords: ["6,000", "11,000", "phone"] },
+    ],
   },
   {
     id: "S07_RATCHET",
     showId: "show_0014",
-    description: "Vs deal with tier ratchet (escalator vocab — LLM should normalize)",
+    description: "Vs deal with tier ratchet (escalator vocab — LLM should normalize, no issues)",
     prose:
       "7,138 g'tee with escalator: 70% net at base, ratchets to 80% over 80% capacity. Expenses to 3550.",
     expected: {
@@ -178,21 +178,18 @@ export const SAMPLES: TestCase[] = [
             { from: 0, to: 0.8, percentage: 0.7 },
             { from: 0.8, to: null, percentage: 0.8 },
           ],
-          confidence: "clear",
         },
       ],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
   },
   {
     id: "S08_COASTAL_DISPUTE",
     showId: "show_coastal_spell_dispute",
     description:
-      "Showcase: vs + gross threshold + ambiguous marketing recoup + dispute history (LLM must mark recoup basis ambiguous)",
+      "Showcase: vs + gross threshold + ambiguous marketing recoup + WME dispute history (LLM must surface ambiguous_value issue on recoup basis AND keep $720 concession as metaNote)",
     prose:
       "$5,000 vs 80% of net after expenses, whichever greater. Expenses capped $2,500. Hospitality cap $500. +$1,000 bonus over $25k gross. Marketing recoup of $900 against gross. (Note added 3/19/25: this deal email was ambiguous — recoup interpretation disputed by WME, resolved with $720 concession.)",
     expected: {
@@ -209,7 +206,6 @@ export const SAMPLES: TestCase[] = [
           threshold: 25000,
           amount: 1000,
           tiers: null,
-          confidence: "clear",
         },
       ],
       recoups: [
@@ -218,23 +214,32 @@ export const SAMPLES: TestCase[] = [
           label: "Marketing recoup of $900 against gross",
           amount: 900,
           basis: "ambiguous",
-          confidence: "needs_eyes",
         },
       ],
-      ambiguities: [],
-      metaNotes: [
-        "3/19/25 note: deal email was ambiguous on recoup interpretation; WME disputed; resolved with $720 concession",
+      issues: [
+        {
+          kind: "ambiguous_value",
+          field: "marketing recoup basis",
+          message:
+            "Prose writes 'against gross' but the inline note says the deal email was ambiguous and WME disputed the basis interpretation. Confirm whether basis should be gross, net, or stays ambiguous.",
+          proseSnippet:
+            "Marketing recoup of $900 against gross. (Note added 3/19/25: this deal email was ambiguous — recoup interpretation disputed by WME, resolved with $720 concession.)",
+        },
       ],
-      extractionConfidence: "high",
-      rejectionReason: null,
+      metaNotes: [
+        "3/19/25: WME disputed recoup interpretation; resolved with $720 concession",
+      ],
     },
-    expectedMetaNoteKeywords: ["WME", "dispute"],
+    expectedIssues: [
+      { kind: "ambiguous_value", keywords: ["WME", "dispute", "basis"] },
+    ],
+    expectedMetaNoteKeywords: ["$720", "concession"],
   },
   {
     id: "S09_RENEGOTIATED",
     showId: "show_0001",
     description:
-      "Vs in prose (structured field is percentage_of_net — that's the drift) + renegotiation history note",
+      "Vs in prose + renegotiation history note (history is contextual, NOT an actionable issue)",
     prose:
       "$3,500 guarantee vs 85% of net after expenses, whichever greater. Renegotiated up from %-only deal three weeks before show — agent insisted on a floor. Expense cap $550, hospitality $300.",
     expected: {
@@ -246,12 +251,10 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: 300,
       bonuses: [],
       recoups: [],
-      ambiguities: [],
+      issues: [],
       metaNotes: [
         "Renegotiated up from %-only deal three weeks before show — agent insisted on a floor",
       ],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
     expectedMetaNoteKeywords: ["renegotiated", "floor"],
   },
@@ -259,7 +262,7 @@ export const SAMPLES: TestCase[] = [
     id: "S10_DEFERS_EMAIL",
     showId: "show_0002",
     description:
-      "Vs deal that defers bonuses to email — LLM must NOT invent bonuses, must surface as ambiguity",
+      "Vs deal that defers bonuses to email — LLM must NOT invent bonuses, must surface deferred_to_external issue",
     prose:
       "$1,405 guarantee vs 90% of net after expenses, whichever greater. Expenses capped $700. Hospitality cap $400. Performance bonuses per the deal memo (see email thread).",
     expected: {
@@ -271,13 +274,19 @@ export const SAMPLES: TestCase[] = [
       hospitalityCap: 400,
       bonuses: [],
       recoups: [],
-      ambiguities: [
-        "Performance bonuses exist but are deferred to the deal memo / email thread — content not in prose",
+      issues: [
+        {
+          kind: "deferred_to_external",
+          field: "bonuses",
+          message:
+            "Performance bonuses are referenced but not stated in prose — content lives in the deal memo / email thread.",
+          proseSnippet: "Performance bonuses per the deal memo (see email thread)",
+        },
       ],
       metaNotes: [],
-      extractionConfidence: "high",
-      rejectionReason: null,
     },
-    expectedAmbiguityKeywords: ["bonus", "email"],
+    expectedIssues: [
+      { kind: "deferred_to_external", keywords: ["bonus", "email", "memo"] },
+    ],
   },
 ];

@@ -45,13 +45,6 @@ function bonusEquals(a: Bonus, b: Bonus): boolean {
   return true;
 }
 
-/** "high" and "medium" are both acceptable when expecting high — drift cases legitimately downgrade. */
-function confidenceClose(actual: string, expected: string): boolean {
-  if (actual === expected) return true;
-  if (expected === "high" && actual === "medium") return true;
-  return false;
-}
-
 function recoupEquals(a: Recoup, b: Recoup): boolean {
   return (
     a.category === b.category &&
@@ -150,17 +143,28 @@ export function evaluateCase(
         : undefined,
   });
 
-  // Soft: ambiguity keyword check
-  if (testCase.expectedAmbiguityKeywords) {
-    fr.push({
-      field: "ambiguities (keywords)",
-      pass: listIncludesAnyKeyword(
-        actual.ambiguities,
-        testCase.expectedAmbiguityKeywords,
-      ),
-      expected: testCase.expectedAmbiguityKeywords,
-      actual: actual.ambiguities,
-    });
+  // Soft: expected issues — for each, must exist actual issue with same kind
+  // whose message contains at least one expected keyword.
+  if (testCase.expectedIssues) {
+    for (const exp of testCase.expectedIssues) {
+      const candidates = actual.issues.filter((i) => i.kind === exp.kind);
+      const found = candidates.find((i) =>
+        exp.keywords.some((kw) =>
+          i.message.toLowerCase().includes(kw.toLowerCase()),
+        ),
+      );
+      fr.push({
+        field: `issues (kind=${exp.kind})`,
+        pass: !!found,
+        expected: exp.keywords,
+        actual: candidates.map((i) => i.message),
+        note: candidates.length === 0
+          ? `no actual issue with kind=${exp.kind}`
+          : !found
+            ? `kind matched but no message contains any of ${exp.keywords.join(", ")}`
+            : undefined,
+      });
+    }
   }
 
   // Soft: meta-note keyword check
@@ -175,13 +179,6 @@ export function evaluateCase(
       actual: actual.metaNotes,
     });
   }
-
-  fr.push({
-    field: "extractionConfidence",
-    pass: confidenceClose(actual.extractionConfidence, expected.extractionConfidence),
-    expected: expected.extractionConfidence,
-    actual: actual.extractionConfidence,
-  });
 
   const passCount = fr.filter((r) => r.pass).length;
   const totalCount = fr.length;

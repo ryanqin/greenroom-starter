@@ -80,14 +80,11 @@ export function ExtractCanonical({ prose }: { prose: string }) {
 function ExtractedPanel({ result }: { result: ExtractedDeal }) {
   return (
     <div className="mt-5 rounded-lg ring-1 ring-brand-300/60 bg-brand-50/30 p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-brand-700" />
-          <div className="eyebrow text-[10px] text-brand-800">
-            AI-extracted canonical deal
-          </div>
+      <div className="flex items-center gap-1.5">
+        <Sparkles className="h-3.5 w-3.5 text-brand-700" />
+        <div className="eyebrow text-[10px] text-brand-800">
+          AI-extracted canonical deal
         </div>
-        <ConfidenceBadge level={result.extractionConfidence} />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -177,18 +174,32 @@ function ExtractedPanel({ result }: { result: ExtractedDeal }) {
         </div>
       )}
 
-      {result.ambiguities.length > 0 && (
+      {result.issues.length > 0 && (
         <div className="rounded-lg bg-amber-50/60 ring-1 ring-amber-200/60 p-3">
           <div className="flex items-center gap-1.5 mb-2">
             <AlertTriangle className="h-3 w-3 text-amber-700" />
             <div className="eyebrow text-[10px] text-amber-800">
-              {result.ambiguities.length} item
-              {result.ambiguities.length === 1 ? "" : "s"} need your eyes
+              {result.issues.length} {result.issues.length === 1 ? "item needs" : "items need"} your call
             </div>
           </div>
-          <ul className="space-y-1.5 text-[12px] text-amber-900 leading-relaxed">
-            {result.ambiguities.map((a, i) => (
-              <li key={i}>· {a}</li>
+          <ul className="space-y-3 text-[12px] text-amber-900 leading-relaxed">
+            {result.issues.map((issue, i) => (
+              <li key={i} className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <IssueKindPill kind={issue.kind} />
+                  {issue.field && (
+                    <span className="text-[11px] font-mono text-amber-700">
+                      {issue.field}
+                    </span>
+                  )}
+                </div>
+                <div>{issue.message}</div>
+                {issue.proseSnippet && (
+                  <div className="ml-1 pl-2 text-[11px] italic text-amber-700 border-l-2 border-amber-300">
+                    &ldquo;{issue.proseSnippet}&rdquo;
+                  </div>
+                )}
+              </li>
             ))}
           </ul>
         </div>
@@ -218,22 +229,16 @@ function ExtractedPanel({ result }: { result: ExtractedDeal }) {
   );
 }
 
-function ConfidenceBadge({
-  level,
-}: {
-  level: ExtractedDeal["extractionConfidence"];
-}) {
-  const styles: Record<typeof level, string> = {
-    high: "bg-emerald-50 ring-emerald-200/70 text-emerald-800",
-    medium: "bg-amber-50 ring-amber-200/70 text-amber-800",
-    low: "bg-rose-50 ring-rose-200/70 text-rose-800",
-    rejected: "bg-ink-100 ring-ink-200/70 text-ink-700",
+function IssueKindPill({ kind }: { kind: string }) {
+  const labels: Record<string, string> = {
+    ambiguous_value: "ambiguous",
+    deferred_to_external: "deferred",
+    version_drift: "drift",
+    missing_context: "missing",
   };
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-medium ring-1 ${styles[level]}`}
-    >
-      {level} confidence
+    <span className="inline-flex shrink-0 items-center px-1.5 py-px rounded text-[9px] font-mono uppercase tracking-wider bg-white ring-1 ring-amber-200/50 text-amber-800">
+      {labels[kind] ?? kind}
     </span>
   );
 }
