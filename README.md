@@ -12,6 +12,19 @@ This is the starter codebase for the Greenroom Applied AI PM case study.
 
 You're looking at a working but mediocre product. It's enough to feel real, but every workflow has gaps. **Your job isn't to fix everything — it's to pick a slice and design it well.** See your case study brief for full instructions.
 
+---
+
+## Case study submission
+
+This fork is my Greenroom case study submission. The original starter remains on `main`; my work is on **`feat/slice-1-canonical`** (10 commits).
+
+- **[MEMO.md](./MEMO.md)** — 2-page design memo (the slice, design choices, what I cut, validation, what ships next).
+- **`tools/extraction-eval/`** — three-tier validation harnesses (training, holdout, random sample).
+- **`lib/canonical-reconcile.ts`** — cross-source drift detection (prose vs structured DB).
+- **`app/shows/[id]/extract-canonical.tsx`** — canonical extraction UI with structured issues.
+
+The AI extraction feature needs an OpenAI API key — see **Step 6** of Setup below.
+
 ## Before you start
 
 You'll need:
@@ -70,6 +83,18 @@ Go to **[http://localhost:3000](http://localhost:3000)**.
 You'll land on Mariana's home view at The Crescent. **Click "Where to start" in the sidebar** for an in-product orientation.
 
 > **Tip:** Press **⌘K** (Mac) or **Ctrl+K** (Windows/Linux) anywhere in the app to open the command palette — search across shows and artists instantly.
+
+### 6. (Optional, for the AI extraction feature) Add an OpenAI API key
+
+The canonical-deal extraction feature added in this fork calls OpenAI. To enable it locally, create `.env.local` at the repo root:
+
+```bash
+OPENAI_API_KEY=sk-your-key-here
+```
+
+Without this, browsing still works end-to-end — but clicking **"Extract canonical deal"** on any show page returns a 500 error. The model is `gpt-4o-mini`; a single extraction costs ~$0.013. The validation harnesses in `tools/extraction-eval/` also need this key (training set, holdout, random sample).
+
+Try **[/shows/show_coastal_spell_dispute](http://localhost:3000/shows/show_coastal_spell_dispute)** for the showcase view (Coastal Spell + WME marketing-recoup dispute).
 
 ---
 
