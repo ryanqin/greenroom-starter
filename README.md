@@ -19,6 +19,7 @@ You're looking at a working but mediocre product. It's enough to feel real, but 
 This fork is my Greenroom case study submission. The original starter remains on `main`; my work is on **`feat/slice-1-canonical`** (10 commits).
 
 - **[MEMO.md](./MEMO.md)** — 2-page design memo (the slice, design choices, what I cut, validation, what ships next).
+- **[Loom walkthrough](https://www.loom.com/share/ea56f3a9230846b3af2674c099733499)** — ~7-minute prototype demo (Coastal Spell extract, cross-source drift on show_0007, calculator closing the 62% gap).
 - **`tools/extraction-eval/`** — three-tier validation harnesses (training, holdout, random sample).
 - **`lib/canonical-reconcile.ts`** — cross-source drift detection (prose vs structured DB).
 - **`app/shows/[id]/extract-canonical.tsx`** — canonical extraction UI with structured issues.
